@@ -1,6 +1,6 @@
 blueprint:
   name: PIR-activated Light
-  description: Turn on a light when motion is detected on PIR, but only after sunset.
+  description: Turn on a light when motion is detected on PIR, but only after sunset
   domain: automation
   input:
     motion_entity:
