@@ -1,21 +1,20 @@
 blueprint:
-  name: PIR-activated Light
-  description: Turn on a light when motion is detected on PIR, but only after sunset.
+  name: Motion Light with Override
+  description: Turns a light on based on detected motion. Does NOT trigger if the light switch is `on` or if it has been turned `off` in the last `X` seconds.
   domain: automation
-  source: https://github.com/Connect-Smart/blueprints/blob/main/PIR_light.yaml
   input:
-    motion_entity:
+    input_motion_sensor_entity:
       name: Motion Sensor
       selector:
         entity:
           domain: binary_sensor
           device_class: motion
-    light_target:
-      name: Light
+          multiple: true
+    input_light_switch_entity:
+      name: Light Switch Entity
       selector:
-        target:
-          entity:
-            domain: light
+        entity:
+          domain: switch
     no_motion_wait:
       name: Wait time
       description: Time to leave the light on after last motion is detected.
@@ -25,28 +24,60 @@ blueprint:
           min: 0
           max: 3600
           unit_of_measurement: seconds
+    target_light_entity:
+      name: The light to control
+      selector:
+        target:
+          entity:
+            domain:
+              - light
+              - switch
+    boolean_sun:
+      name: Na zonsondergang
+      default: true
+      selector:
+        boolean:
 
-# If motion is detected within the delay,
-# we restart the script.
 mode: restart
 max_exceeded: silent
 
+variables:
+  switchEntityVar: !input input_light_switch_entity
+  useSun: !input boolean_sun
+
+alias: Test Light Motion (Duplicate)
+description: ""
 trigger:
-  platform: state
-  entity_id: !input motion_entity
-  from: "off"
-  to: "on"
-condition: 
-  condition: template
-  value_template: "{{ state_attr('sun.sun', 'elevation') < 0 }}" 
+  - platform: state
+    entity_id: !input input_motion_sensor_entity
+    id: Motion Triggered
+    from: "off"
+    to: "on"
+
+condition:
+- and:
+  - condition: template
+    value_template: >-
+      {% if useSun != 0 %}
+        {% if is_state('sun.sun', 'below_horizon') %}
+          True
+        {% endif %}
+      {% else %}
+        True
+      {% endif %}
+  - condition: trigger
+    id: Motion Triggered
+  - condition: state
+    entity_id: !input input_light_switch_entity
+    state: "off"
 action:
-  - service: light.turn_on
-    target: !input light_target
+  - service: homeassistant.turn_on
+    target: !input target_light_entity
   - wait_for_trigger:
       platform: state
-      entity_id: !input motion_entity
+      entity_id: !input input_motion_sensor_entity
       from: "on"
       to: "off"
   - delay: !input no_motion_wait
-  - service: light.turn_off
-    target: !input light_target
+  - service: homeassistant.turn_off
+    target: !input target_light_entity
