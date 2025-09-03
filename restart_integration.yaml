@@ -1,0 +1,49 @@
+blueprint:
+  name: Restart integration when device becomes reachable
+  description: >
+    Deze blueprint herstart een configuratie-entry nadat een binary_sensor
+    (bijvoorbeeld van een apparaat dat weggevallen was) weer 5 minuten 
+    bereikbaar is.
+  domain: automation
+  input:
+    target_entity:
+      name: Doel binary sensor
+      description: De binary_sensor die de beschikbaarheid van het apparaat aangeeft.
+      selector:
+        entity:
+          domain: binary_sensor
+    config_entry:
+      name: Config Entry ID
+      description: Het entry_id van de integratie die moet worden herstart.
+      selector:
+        text: {}
+
+mode: single
+
+triggers:
+  - platform: state
+    entity_id: !input target_entity
+    from: "off"
+    to: "on"
+    for:
+      minutes: 5
+  - platform: state
+    entity_id: !input target_entity
+    from: "unavailable"
+    to: "on"
+    for:
+      minutes: 5
+  - platform: state
+    entity_id: !input target_entity
+    from: "unknown"
+    to: "on"
+    for:
+      minutes: 5
+
+conditions: []
+
+actions:
+  - delay: "00:00:20"
+  - service: homeassistant.reload_config_entry
+    data:
+      entry_id: !input config_entry
