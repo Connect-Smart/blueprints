@@ -13,10 +13,10 @@ blueprint:
         entity:
           domain: binary_sensor
     config_entry:
-      name: Config Entry ID
-      description: Het entry_id van de integratie die moet worden herstart.
+      name: Config Entry
+      description: De integratie die moet worden herstart.
       selector:
-        text: {}
+        config_entry: {}
 
 mode: single
 
