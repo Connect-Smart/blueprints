@@ -1,14 +1,23 @@
 blueprint:
-  name: Restart integration when device becomes reachable
+  name: Restart integration when device becomes reachable (Ping)
   description: >
-    Deze blueprint herstart een configuratie-entry nadat een binary_sensor
-    (bijvoorbeeld van een apparaat dat weggevallen was) weer 5 minuten 
-    bereikbaar is.
+    Deze blueprint herstart een configuratie-entry nadat een apparaat
+    weer 5 minuten bereikbaar is via ping.
+    
+    SETUP INSTRUCTIES:
+    1. Ga naar Instellingen → Apparaten & Services → Helpers
+    2. Klik op "Helper toevoegen" → "Ping (Binary Sensor)"
+    3. Vul het IP-adres van je apparaat in
+    4. Geef de helper een duidelijke naam (bijv. "Ping Mijn Router")
+    5. Gebruik dan deze blueprint en selecteer de aangemaakte ping helper
+    
   domain: automation
   input:
     target_entity:
-      name: Doel binary sensor
-      description: De binary_sensor die de beschikbaarheid van het apparaat aangeeft.
+      name: Ping Binary Sensor
+      description: >
+        De ping binary sensor helper die de beschikbaarheid van het apparaat aangeeft.
+        Maak eerst een ping helper aan via Instellingen → Helpers (zie beschrijving).
       selector:
         entity:
           domain: binary_sensor
@@ -17,6 +26,28 @@ blueprint:
       description: De integratie die moet worden herstart.
       selector:
         config_entry: {}
+    delay_before_restart:
+      name: Vertraging voor herstart
+      description: Tijd wachten voordat de integratie wordt herstart (in seconden).
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 300
+          step: 5
+          unit_of_measurement: "s"
+          mode: box
+    stability_time:
+      name: Stabiliteitstijd
+      description: Hoe lang moet het apparaat bereikbaar zijn voordat de herstart wordt uitgevoerd (in minuten).
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 30
+          step: 1
+          unit_of_measurement: "min"
+          mode: box
 
 mode: single
 
@@ -26,24 +57,43 @@ triggers:
     from: "off"
     to: "on"
     for:
-      minutes: 5
+      minutes: !input stability_time
   - platform: state
     entity_id: !input target_entity
-    from: "unavailable"
+    from: "unavailable" 
     to: "on"
     for:
-      minutes: 5
+      minutes: !input stability_time
   - platform: state
     entity_id: !input target_entity
     from: "unknown"
     to: "on"
     for:
-      minutes: 5
+      minutes: !input stability_time
 
 conditions: []
 
 actions:
-  - delay: "00:00:20"
+  - delay: 
+      seconds: !input delay_before_restart
+      
   - service: homeassistant.reload_config_entry
     data:
       entry_id: !input config_entry
+      
+  - service: system_log.write
+    data:
+      level: info
+      message: >
+        Blueprint 'Restart integration when device becomes reachable': 
+        Integratie herstart omdat {{ state_attr(trigger.entity_id, 'friendly_name') }} 
+        {{ trigger.minutes }} minuten bereikbaar is geweest.
+
+  # Optioneel: stuur een notificatie
+  - service: persistent_notification.create
+    data:
+      title: "Integratie herstart"
+      message: >
+        De integratie is automatisch herstart omdat 
+        {{ state_attr(trigger.entity_id, 'friendly_name') }} weer bereikbaar is.
+      notification_id: "integration_restart_{{ trigger.entity_id | replace('.', '_') }}"
